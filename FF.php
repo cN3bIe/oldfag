@@ -3,7 +3,7 @@
 require_once(COMPONENTS.'/appclear/containers/FF.php');
  */
 /*
- * FFv1.032 9.01.2017  FormField
+ * FFv1.042 23.01.2017  FormField
 		Способ применения:
 		$fields = array(
 			'name'=>array('type'=>'text','empty'=>false,'insertdb'=>true,'rename'=>'user_*'),
@@ -52,8 +52,11 @@ class FF{
 		return str_replace('*',$name,$this->fields[$name]['rename']);
 	}
 	// Очистка поля от мешуры
-	static public function CV($str){
-		return trim(strip_tags($str));
+	// FFv1.04 добавлена возможность очистки по regex
+	static public function CV($str, $regex=''){
+		if(empty($regex)) return trim(strip_tags($str));
+		if($str=FF::CV($str)) $str=preg_match($regex,$str,$arr_str)?array_shift($arr_str):'';
+		return $str;
 	}
 	// Выводит содержимое obj методом var_dump(), если указан title то выведет его вначале
 	static public function dump($obj, $title=''){
@@ -64,11 +67,12 @@ class FF{
 	}
 	//Возвращает объект из self::DOCUMENT
 	static public function GetD($name=''){
-		return ($name?self::$DOCUMENT[$name]:$doc);
+		$doc=self::$DOCUMENT;
+		return ($name?$doc[$name]:$doc);
 	}
 	//Возвращает объект из self::DOCUMENTS
 	static public function GetDs($name=''){
-		$docs=self::DOCUMENTS;
+		$docs=self::$DOCUMENTS;
 		return ($name?$docs[$name]:$docs);
 	}
 	// Default settings for fields
@@ -181,14 +185,14 @@ class FF{
 								case 'int':
 									$this->document = $this->DB->GetDocumentById($params['db']['journal'],(int)$this->object[$name]);
 									if(stripos($this->document['journal_alias'],$params['db']['journal'])===false) self::AppendError($this->Name($name).'.not.exist');
-									else self::$DOCUMENT[$name]=&$this->document;
+									else self::$DOCUMENT[$name]=$this->document;
 									break;
 								case 'array':
 									foreach(explode(';',$this->object[$name]) as $key=>$id){
 										$this->documents[(int)$id] = $this->DB->GetDocumentById($params['db']['journal'],(int)$id);
 										if($this->documents[(int)$id]['journal_alias'] !== $params['db']['journal']) self::AppendError($this->Name($name).'.'.$id.'.not.exist');
 									}
-									if(!is_null($this->documents)) self::$DOCUMENTS[]=&$this->documents;
+									if(!is_null($this->documents)) self::$DOCUMENTS[]=$this->documents;
 									break;
 							}
 							break;
@@ -298,7 +302,16 @@ class FF{
 		$document_params['alias.editable'] = 'false';
 		$document_field = array();
 		foreach($this->fields as $name=>$params){
-			if($params['insertdb'])$document_field[$name] = $this->object[$name];
+			if($params['insertdb']){
+				switch($params['type']){
+					case 'bool':
+						$document_field[$name] = $this->object[$name]?'true':'false';
+						break;
+					default:
+						$document_field[$name] = $this->object[$name];
+						break;
+				}
+			}
 		}
 		if(isset($info['additional_fields'])){
 			foreach($info['additional_fields'] as $name=>$value){
